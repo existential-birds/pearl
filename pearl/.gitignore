@@ -41,3 +41,9 @@ npm-debug.log
 
 # Log files
 /logs/
+
+# Environment variables (contains secrets)
+.env
+.env.local
+.env.*.local
+*.env

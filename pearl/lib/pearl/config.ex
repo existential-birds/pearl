@@ -8,8 +8,9 @@ defmodule Pearl.Config do
   provider/model are selected dynamically via UI.
 
   Configuration is read from application environment:
-  - `:llm_provider` - The LLM provider (`:ollama` or `:openrouter`)
+  - `:llm_provider` - The LLM provider (`:ollama`, `:openrouter`, or `:openai`)
   - `:llm_model` - The chat model identifier string
+  - `:embedding_provider` - The embedding provider (falls back to `:llm_provider` if not set)
   - `:embedding_model` - The embedding model identifier string
   """
 
@@ -19,9 +20,9 @@ defmodule Pearl.Config do
   Reads from `Application.get_env(:pearl, :llm_provider)`.
 
   ## Returns
-  - `:ollama` or `:openrouter` (default: `:openrouter`)
+  - `:ollama`, `:openrouter`, or `:openai` (default: `:openrouter`)
   """
-  @spec provider() :: :ollama | :openrouter
+  @spec provider() :: :ollama | :openrouter | :openai
   def provider do
     Application.get_env(:pearl, :llm_provider, :openrouter)
   end
@@ -40,15 +41,29 @@ defmodule Pearl.Config do
   end
 
   @doc """
+  Returns the configured embedding provider.
+
+  Reads from `Application.get_env(:pearl, :embedding_provider)`.
+  Falls back to the chat provider if not explicitly set.
+
+  ## Returns
+  - `:ollama`, `:openrouter`, or `:openai` (default: falls back to `provider()`)
+  """
+  @spec embedding_provider() :: :ollama | :openrouter | :openai
+  def embedding_provider do
+    Application.get_env(:pearl, :embedding_provider) || provider()
+  end
+
+  @doc """
   Returns the configured embedding model.
 
   Reads from `Application.get_env(:pearl, :embedding_model)`.
 
   ## Returns
-  - Embedding model identifier string (default: `"openai/text-embedding-3-small"`)
+  - Embedding model identifier string (default: `"text-embedding-3-small"`)
   """
   @spec embedding_model() :: String.t()
   def embedding_model do
-    Application.get_env(:pearl, :embedding_model, "openai/text-embedding-3-small")
+    Application.get_env(:pearl, :embedding_model, "text-embedding-3-small")
   end
 end

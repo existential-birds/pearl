@@ -144,6 +144,15 @@ Both implement the `Pearl.Providers.Provider` behavior:
 
 ## 3. Claude Agent SDK Integration
 
+### SDK Overview
+
+The `claude_agent_sdk` package (v0.9.2) provides Elixir integration with Claude Code CLI:
+- **Published on Hex**: https://hex.pm/packages/claude_agent_sdk
+- **Main API**: `ClaudeAgentSDK.query/2` returns a stream of messages
+- **Authentication**: Uses `ANTHROPIC_API_KEY` env var automatically
+- **Response format**: Stream of `ClaudeAgentSDK.Message` structs
+- **Text extraction**: `ClaudeAgentSDK.ContentExtractor.extract_text/1`
+
 ### Implementation
 
 **File:** `lib/pearl/providers/claude_code.ex`
@@ -152,9 +161,12 @@ Both implement the `Pearl.Providers.Provider` behavior:
 defmodule Pearl.Providers.ClaudeCode do
   @moduledoc """
   Provider implementation for Claude Code CLI using the claude_agent_sdk.
+  Uses ClaudeAgentSDK.query/2 which returns a stream of messages.
   """
 
   @behaviour Pearl.Providers.Provider
+
+  alias ClaudeAgentSDK.{Options, ContentExtractor, Message}
 
   require Logger
 
@@ -162,31 +174,46 @@ defmodule Pearl.Providers.ClaudeCode do
   def chat(model, messages, opts) do
     Logger.info("ClaudeCode: Starting chat request", model: model, stream: opts[:stream])
 
-    api_key = get_api_key!()
     stream? = Keyword.get(opts, :stream, false)
 
-    # Use claude_agent_sdk from Hex
-    case ClaudeAgentSDK.chat(
-      api_key: api_key,
-      model: model,
-      messages: messages,
-      stream: stream?
-    ) do
-      {:ok, response} when stream? ->
-        Logger.debug("ClaudeCode: Chat streaming started")
-        {:ok, response}  # Stream enumerable
+    # Build prompt from messages (convert OpenAI format to Claude format)
+    prompt = format_messages_to_prompt(messages)
 
-      {:ok, response} ->
-        Logger.debug("ClaudeCode: Chat successful", response_length: byte_size(response.content))
-        {:ok, response.content}  # Extract text
+    # Configure SDK options
+    sdk_options = %Options{
+      model: normalize_model_name(model),
+      output_format: :stream_json,
+      max_turns: 1  # Single-turn for wiki generation
+    }
 
-      {:error, reason} = error ->
-        Logger.error("ClaudeCode: Chat failed",
-          model: model,
-          error: inspect(reason),
-          messages_count: length(messages)
-        )
-        error
+    # Query returns a stream of ClaudeAgentSDK.Message structs
+    message_stream = ClaudeAgentSDK.query(prompt, sdk_options)
+
+    if stream? do
+      # Return transformed stream for streaming responses
+      transformed_stream =
+        message_stream
+        |> Stream.filter(&(&1.type == :assistant))
+        |> Stream.map(&ContentExtractor.extract_text/1)
+        |> Stream.reject(&(&1 == ""))
+
+      Logger.debug("ClaudeCode: Chat streaming started")
+      {:ok, transformed_stream}
+    else
+      # Collect all messages and extract final text
+      case collect_response(message_stream) do
+        {:ok, text} ->
+          Logger.debug("ClaudeCode: Chat successful", response_length: byte_size(text))
+          {:ok, text}
+
+        {:error, reason} = error ->
+          Logger.error("ClaudeCode: Chat failed",
+            model: model,
+            error: inspect(reason),
+            messages_count: length(messages)
+          )
+          error
+      end
     end
   end
 
@@ -198,25 +225,57 @@ defmodule Pearl.Providers.ClaudeCode do
 
   @impl true
   def list_models do
-    # Return Claude models
+    # Return Claude models (SDK accepts short names)
     {:ok, [
-      %{id: "claude-opus-4-5", name: "Claude Opus 4.5"},
-      %{id: "claude-sonnet-4-5", name: "Claude Sonnet 4.5"},
-      %{id: "claude-haiku-4-5", name: "Claude Haiku 4.5"}
+      %{id: "opus", name: "Claude Opus 4.5"},
+      %{id: "sonnet", name: "Claude Sonnet 4.5"},
+      %{id: "haiku", name: "Claude Haiku 4.5"}
     ]}
   end
 
   @impl true
   def embedding_model, do: "not-supported"
 
-  defp get_api_key! do
-    case System.get_env("ANTHROPIC_API_KEY") do
-      nil ->
-        Logger.error("Missing required environment variable", var: "ANTHROPIC_API_KEY")
-        raise "ANTHROPIC_API_KEY environment variable not set"
-      key ->
-        Logger.debug("API key loaded from environment", var: "ANTHROPIC_API_KEY")
-        key
+  # Private helpers
+
+  defp format_messages_to_prompt(messages) do
+    # Convert OpenAI-style messages to a single prompt
+    # Extract the last user message as the primary prompt
+    messages
+    |> Enum.filter(&(&1.role == "user"))
+    |> List.last()
+    |> Map.get(:content, "")
+  end
+
+  defp collect_response(message_stream) do
+    try do
+      text =
+        message_stream
+        |> Enum.filter(&(&1.type == :assistant))
+        |> Enum.map(&ContentExtractor.extract_text/1)
+        |> Enum.join("")
+
+      if text == "" do
+        {:error, :no_response}
+      else
+        {:ok, text}
+      end
+    rescue
+      error ->
+        {:error, error}
+    end
+  end
+
+  defp normalize_model_name(model) do
+    # SDK accepts: "opus", "sonnet", "haiku", or full model IDs
+    case String.downcase(model) do
+      "claude-opus-4-5" <> _ -> "opus"
+      "claude-sonnet-4-5" <> _ -> "sonnet"
+      "claude-haiku-4-5" <> _ -> "haiku"
+      "opus" -> "opus"
+      "sonnet" -> "sonnet"
+      "haiku" -> "haiku"
+      _ -> model  # Pass through full model IDs
     end
   end
 end
@@ -224,11 +283,15 @@ end
 
 ### Key Decisions
 
-- Use `claude_agent_sdk` package directly from Hex
-- API key from `ANTHROPIC_API_KEY` env var (Anthropic standard)
-- Model names passed through (Anthropic API handles aliases like "opus")
-- Streaming support via SDK's built-in streaming
+- Use `claude_agent_sdk` v0.9.2 from Hex (https://hex.pm/packages/claude_agent_sdk)
+- API key from `ANTHROPIC_API_KEY` env var (SDK handles automatically)
+- SDK uses `ClaudeAgentSDK.query/2` which returns stream of `ClaudeAgentSDK.Message` structs
+- Model names normalized to SDK format ("opus", "sonnet", "haiku")
+- Text extraction via `ClaudeAgentSDK.ContentExtractor.extract_text/1`
+- Streaming support: filter `:assistant` messages and extract text chunks
+- Non-streaming: collect all messages and join text
 - Embeddings return `{:error, :not_supported}`
+- Single-turn mode (`max_turns: 1`) for wiki generation
 
 ## 4. OpenAI Embeddings Integration
 
@@ -387,9 +450,9 @@ Add to `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:claude_agent_sdk, "~> 0.1"},
-    {:tesla, "~> 1.6"},
-    {:mint, "~> 1.5"},
+    {:claude_agent_sdk, "~> 0.9.2"},  # Hex: https://hex.pm/packages/claude_agent_sdk
+    {:tesla, "~> 1.6"},                # For OpenAI HTTP client
+    {:mint, "~> 1.5"},                 # For OpenAI HTTP client
     # ... existing deps
   ]
 end
@@ -609,7 +672,7 @@ end
 ### Migration Steps
 
 1. **Add dependencies to `mix.exs`:**
-   - `{:claude_agent_sdk, "~> 0.1"}`
+   - `{:claude_agent_sdk, "~> 0.9.2"}` (published on Hex)
    - `{:tesla, "~> 1.6"}`
    - `{:mint, "~> 1.5"}`
 

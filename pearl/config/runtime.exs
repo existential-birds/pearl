@@ -27,12 +27,23 @@ llm_provider =
   case System.get_env("LLM_PROVIDER", "openrouter") do
     "ollama" -> :ollama
     "openrouter" -> :openrouter
+    "claude-code" -> :claude_code
     _ -> :openrouter
+  end
+
+embedding_provider =
+  case System.get_env("EMBEDDING_PROVIDER") do
+    "ollama" -> :ollama
+    "openrouter" -> :openrouter
+    "openai" -> :openai
+    nil -> llm_provider  # Fallback to LLM provider
+    _ -> llm_provider
   end
 
 config :pearl,
   llm_provider: llm_provider,
   llm_model: System.get_env("LLM_MODEL", "openai/gpt-5.2"),
+  embedding_provider: embedding_provider,
   embedding_model: System.get_env("EMBEDDING_MODEL", "openai/text-embedding-3-small")
 
 if config_env() == :prod do

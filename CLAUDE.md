@@ -48,7 +48,10 @@ mix ecto.reset          # Drop and recreate
   - `provider.ex` - Behavior defining provider interface
   - `ollama.ex` - Local Ollama integration
   - `openrouter.ex` - OpenRouter cloud API
+  - `claude_code.ex` - Claude Code CLI integration via claude_agent_sdk
+  - `openai.ex` - OpenAI embeddings for specialized vector operations
   - `providers.ex` - Router facade selecting active provider
+  - Note: Chat and embedding providers are decoupled for flexibility
 
 - **`repositories/`** - Git repository management
   - `repositories.ex` - Context API for cloning/managing repos
@@ -88,13 +91,23 @@ PostgreSQL with pgvector extension required. Tables:
 ## Environment Variables
 
 ```bash
-# LLM Provider (ollama or openrouter)
-LLM_PROVIDER=openrouter
-LLM_MODEL=openai/gpt-4o-mini
-EMBEDDING_MODEL=openai/text-embedding-3-small
+# LLM Provider (ollama, openrouter, or claude-code)
+LLM_PROVIDER=claude-code
+LLM_MODEL=claude-sonnet-4-5-20250929
 
-# OpenRouter
-OPENROUTER_API_KEY=sk-...
+# Embedding Provider (ollama, openrouter, or openai)
+# Decoupled from LLM_PROVIDER for specialized vector operations
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-3-small
+
+# Anthropic (for Claude Code CLI integration)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenAI (for embeddings)
+OPENAI_API_KEY=sk-proj-...
+
+# OpenRouter (alternative cloud provider)
+OPENROUTER_API_KEY=sk-or-...
 
 # Ollama (if using local)
 OLLAMA_HOST=http://localhost:11434
@@ -108,5 +121,6 @@ PEARL_REPOS_PATH=~/.pearl/repos
 
 - **Backend**: Elixir 1.15+, Phoenix 1.8, Ecto with PostgreSQL
 - **Frontend**: Phoenix LiveView 1.1, Tailwind CSS 4, daisyUI (retro/synthwave themes)
-- **LLM**: Ollama (local) or OpenRouter (cloud) with embedding support
+- **LLM**: Claude Code CLI (via claude_agent_sdk), Ollama (local), or OpenRouter (cloud)
+- **Embeddings**: OpenAI text-embedding-3-small for specialized vector operations
 - **Vector Search**: pgvector with HNSW indexing

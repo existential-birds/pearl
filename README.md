@@ -54,9 +54,23 @@ See the [PostgreSQL download page](https://www.postgresql.org/download/) and [pg
 
 ### 3. LLM Provider
 
-Pearl needs an LLM to generate wikis and answer questions. Choose one:
+Pearl needs an LLM to generate wikis and answer questions. You can mix and match providers for chat/wiki generation and embeddings. Choose from:
 
-#### Option A: OpenRouter (Recommended for beginners)
+#### Option A: Claude Code CLI (Recommended for local development)
+
+High-quality chat and wiki generation using Claude via the official CLI.
+
+1. Install Claude Code CLI from [claude.ai/code](https://claude.ai/code)
+2. Get an Anthropic API key from [console.anthropic.com](https://console.anthropic.com)
+3. Set the environment variable:
+
+   ```bash
+   export ANTHROPIC_API_KEY=sk-ant-your-key-here
+   ```
+
+#### Option B: OpenRouter (Cloud-based)
+
+Access multiple models through a single API.
 
 1. Create an account at [openrouter.ai](https://openrouter.ai/)
 2. Generate an API key
@@ -66,7 +80,9 @@ Pearl needs an LLM to generate wikis and answer questions. Choose one:
    export OPENROUTER_API_KEY=sk-your-key-here
    ```
 
-#### Option B: Ollama (Run models locally)
+#### Option C: Ollama (Local models)
+
+Run models entirely on your machine.
 
 1. Install from [ollama.ai](https://ollama.ai/)
 2. Pull a model:
@@ -74,6 +90,18 @@ Pearl needs an LLM to generate wikis and answer questions. Choose one:
    ```bash
    ollama pull llama3.2:3b
    ```
+
+#### Embedding Provider
+
+For semantic search, Pearl needs an embedding provider. You can use a different provider for embeddings than for chat:
+
+**OpenAI (Recommended)** - Specialized embedding models with excellent quality:
+
+```bash
+export OPENAI_API_KEY=sk-your-key-here
+```
+
+**Other options:** OpenRouter and Ollama also support embeddings if you're already using them for chat.
 
 ## Setup
 
@@ -86,18 +114,43 @@ Pearl needs an LLM to generate wikis and answer questions. Choose one:
 
 2. **Configure your LLM provider** by setting environment variables (either export directly in your terminal or add to a `.env` file to source later):
 
+   **Recommended Setup (Cost-Effective Local Development):**
+
    ```bash
-   # For OpenRouter (recommended)
+   # Chat/wiki generation via Claude Code CLI (local, high quality)
+   export LLM_PROVIDER=claude-code
+   export LLM_MODEL=opus
+   export ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+   # Embeddings via OpenAI API (specialized, cost-effective)
+   export EMBEDDING_PROVIDER=openai
+   export EMBEDDING_MODEL=text-embedding-3-small
+   export OPENAI_API_KEY=sk-your-key-here
+   ```
+
+   **Alternative: OpenRouter (All-in-One Cloud):**
+
+   ```bash
    export LLM_PROVIDER=openrouter
-   export LLM_MODEL=openai/gpt-5.2
+   export LLM_MODEL=openai/gpt-4o-mini
    export EMBEDDING_MODEL=openai/text-embedding-3-small
    export OPENROUTER_API_KEY=sk-your-key-here
-
-   # For Ollama (local)
-   # export LLM_PROVIDER=ollama
-   # export OLLAMA_HOST=http://localhost:11434
-   # export OLLAMA_DEFAULT_MODEL=llama3.2:3b
    ```
+
+   **Alternative: Ollama (Fully Local):**
+
+   ```bash
+   export LLM_PROVIDER=ollama
+   export OLLAMA_HOST=http://localhost:11434
+   export OLLAMA_DEFAULT_MODEL=llama3.2:3b
+   # EMBEDDING_PROVIDER defaults to LLM_PROVIDER if not set
+   ```
+
+   **Provider Options:**
+   - `LLM_PROVIDER`: `claude-code` | `openrouter` | `ollama`
+   - `LLM_MODEL`: Provider-specific (e.g., `opus`, `openai/gpt-4o-mini`, `llama3.2:3b`)
+   - `EMBEDDING_PROVIDER`: `openai` | `openrouter` | `ollama` (defaults to `LLM_PROVIDER` if not set)
+   - `EMBEDDING_MODEL`: Provider-specific embedding model
 
 3. **Install JavaScript dependencies:**
 
@@ -132,10 +185,37 @@ Pearl combines several components:
 
 - **Phoenix LiveView** — Real-time web interface with no JavaScript required
 - **RAG Pipeline** — Chunks code files, generates embeddings, and searches for relevant context
-- **LLM Integration** — Supports both cloud (OpenRouter) and local (Ollama) providers
+- **LLM Integration** — Supports multiple providers: Claude Code CLI (local), OpenRouter (cloud), Ollama (local), and OpenAI (embeddings)
 - **pgvector** — Stores and searches vector embeddings for similarity matching
 
 For detailed architecture documentation, see [CLAUDE.md](./CLAUDE.md).
+
+### Provider Combinations
+
+Pearl allows you to mix and match providers for different tasks. Here are recommended combinations:
+
+| Use Case | Chat Provider | Embedding Provider | Why |
+|----------|---------------|-------------------|-----|
+| **Local Development** | `claude-code` | `openai` | High-quality Claude for chat, specialized OpenAI embeddings |
+| **Cloud (Simple)** | `openrouter` | `openrouter` | Single API for everything |
+| **Fully Local** | `ollama` | `ollama` | No external API calls, full privacy |
+| **Cost-Optimized** | `claude-code` | `openai` | Claude CLI for heavy lifting, cheap OpenAI embeddings |
+
+**Environment Variables by Provider:**
+
+```bash
+# Claude Code CLI
+ANTHROPIC_API_KEY=sk-ant-...
+
+# OpenAI (for embeddings or chat)
+OPENAI_API_KEY=sk-...
+
+# OpenRouter (for chat and/or embeddings)
+OPENROUTER_API_KEY=sk-or-...
+
+# Ollama (no API key needed)
+OLLAMA_HOST=http://localhost:11434
+```
 
 ### RAG Implementation
 

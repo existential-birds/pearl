@@ -4,9 +4,9 @@ defmodule Pearl.Providers do
   Routes calls to appropriate provider client.
   """
 
-  alias Pearl.Providers.{Ollama, OpenRouter}
+  alias Pearl.Providers.{ClaudeCode, Ollama, OpenAI, OpenRouter}
 
-  @type provider :: :ollama | :openrouter
+  @type provider :: :ollama | :openrouter | :claude_code | :openai
 
   @spec chat(provider(), String.t(), [map()], keyword()) ::
           {:ok, String.t() | Enumerable.t()} | {:error, term()}
@@ -18,6 +18,10 @@ defmodule Pearl.Providers do
 
   def chat(:openrouter, model, messages, opts) do
     OpenRouter.chat(model, messages, opts)
+  end
+
+  def chat(:claude_code, model, messages, opts) do
+    ClaudeCode.chat(model, messages, opts)
   end
 
   def chat(_provider, _model, _messages, _opts) do
@@ -35,6 +39,10 @@ defmodule Pearl.Providers do
     OpenRouter.embed(texts)
   end
 
+  def embed(:openai, texts) do
+    OpenAI.embed(texts)
+  end
+
   def embed(_provider, _texts) do
     {:error, :unknown_provider}
   end
@@ -50,6 +58,14 @@ defmodule Pearl.Providers do
     OpenRouter.list_models()
   end
 
+  def list_models(:claude_code) do
+    ClaudeCode.list_models()
+  end
+
+  def list_models(:openai) do
+    OpenAI.list_models()
+  end
+
   def list_models(_provider) do
     {:error, :unknown_provider}
   end
@@ -57,5 +73,6 @@ defmodule Pearl.Providers do
   @spec embedding_model(provider()) :: String.t()
   def embedding_model(:ollama), do: Ollama.embedding_model()
   def embedding_model(:openrouter), do: OpenRouter.embedding_model()
+  def embedding_model(:openai), do: OpenAI.embedding_model()
   def embedding_model(_provider), do: "unknown"
 end

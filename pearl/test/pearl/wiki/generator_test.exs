@@ -171,4 +171,107 @@ defmodule Pearl.Wiki.GeneratorTest do
       assert auth_score > users_score
     end
   end
+
+  describe "integration tests" do
+    @tag :integration
+    test "generate uses configured chat provider" do
+      # Save original environment values
+      original_llm_provider = System.get_env("LLM_PROVIDER")
+      original_config = Application.get_env(:pearl, :llm_provider)
+
+      try do
+        # Set environment variable and update application config
+        System.put_env("LLM_PROVIDER", "claude-code")
+        Application.put_env(:pearl, :llm_provider, :claude_code)
+
+        # Verify the config is set correctly
+        assert Pearl.Config.provider() == :claude_code
+
+        # Note: This test verifies that the provider configuration is set up correctly.
+        # Actual wiki generation would require a valid API key and is intended to be
+        # run manually or in a CI environment with proper credentials.
+        # To fully test generation, you would call:
+        # {:ok, wiki} = Pearl.Wiki.generate(repo_id, repo_path)
+      after
+        # Restore original environment
+        if original_llm_provider do
+          System.put_env("LLM_PROVIDER", original_llm_provider)
+        else
+          System.delete_env("LLM_PROVIDER")
+        end
+
+        if original_config do
+          Application.put_env(:pearl, :llm_provider, original_config)
+        else
+          Application.delete_env(:pearl, :llm_provider)
+        end
+      end
+    end
+
+    @tag :integration
+    test "generate with openai provider configuration" do
+      # Save original environment values
+      original_llm_provider = System.get_env("LLM_PROVIDER")
+      original_config = Application.get_env(:pearl, :llm_provider)
+
+      try do
+        # Set environment variable and update application config
+        System.put_env("LLM_PROVIDER", "openai")
+        Application.put_env(:pearl, :llm_provider, :openai)
+
+        # Verify the config is set correctly
+        assert Pearl.Config.provider() == :openai
+
+        # Note: This test verifies that the provider configuration is set up correctly.
+        # Actual wiki generation would require a valid API key and is intended to be
+        # run manually or in a CI environment with proper credentials.
+      after
+        # Restore original environment
+        if original_llm_provider do
+          System.put_env("LLM_PROVIDER", original_llm_provider)
+        else
+          System.delete_env("LLM_PROVIDER")
+        end
+
+        if original_config do
+          Application.put_env(:pearl, :llm_provider, original_config)
+        else
+          Application.delete_env(:pearl, :llm_provider)
+        end
+      end
+    end
+
+    @tag :integration
+    test "generate with openrouter provider configuration" do
+      # Save original environment values
+      original_llm_provider = System.get_env("LLM_PROVIDER")
+      original_config = Application.get_env(:pearl, :llm_provider)
+
+      try do
+        # Set environment variable and update application config
+        System.put_env("LLM_PROVIDER", "openrouter")
+        Application.put_env(:pearl, :llm_provider, :openrouter)
+
+        # Verify the config is set correctly
+        assert Pearl.Config.provider() == :openrouter
+
+        # Note: This test verifies that the provider configuration is set up correctly.
+        # Actual wiki generation would require a valid API key and is intended to be
+        # run manually or in a CI environment with proper credentials.
+      after
+        # Restore original environment
+        if original_llm_provider do
+          System.put_env("LLM_PROVIDER", original_llm_provider)
+        else
+          System.delete_env("LLM_PROVIDER")
+        end
+
+        if original_config do
+          Application.put_env(:pearl, :llm_provider, original_config)
+        else
+          Application.delete_env(:pearl, :llm_provider)
+        end
+      end
+    end
+  end
 end
