@@ -12,6 +12,26 @@ defmodule Pearl.Release do
   @app :pearl
 
   @doc """
+  Creates the database if it does not exist.
+
+  Returns `:ok` whether the database was created or already existed.
+  """
+  @spec create_db() :: :ok
+  def create_db do
+    load_app()
+
+    for repo <- repos() do
+      case repo.__adapter__().storage_up(repo.config()) do
+        :ok -> :ok
+        {:error, :already_up} -> :ok
+        {:error, reason} -> raise "Could not create database: #{inspect(reason)}"
+      end
+    end
+
+    :ok
+  end
+
+  @doc """
   Runs all pending Ecto migrations.
 
   Returns `:ok` after all migrations complete. Safe to call repeatedly —

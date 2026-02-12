@@ -41,29 +41,42 @@ defmodule Pearl.Application do
   # Only writes if the env var is set AND the setting is still at its default.
   # This allows Docker users to configure via env vars without overriding
   # values that were previously set via the Settings UI.
+  # Runs asynchronously so it doesn't block application startup if the
+  # database is temporarily unavailable.
   defp seed_settings_from_env do
-    env_to_setting = [
-      {"LLM_PROVIDER", "chat_provider"},
-      {"LLM_MODEL", "chat_model"},
-      {"EMBEDDING_MODEL", "embedding_model"}
-    ]
+    Task.start(fn ->
+      # Brief delay to let Repo connections stabilize
+      Process.sleep(2_000)
 
-    for {env_var, setting_key} <- env_to_setting do
-      case System.get_env(env_var) do
-        nil ->
-          :ok
+      env_to_setting = [
+        {"LLM_PROVIDER", "chat_provider"},
+        {"LLM_MODEL", "chat_model"},
+        {"EMBEDDING_MODEL", "embedding_model"}
+      ]
 
-        "" ->
-          :ok
+      for {env_var, setting_key} <- env_to_setting do
+        case System.get_env(env_var) do
+          nil ->
+            :ok
 
-        value ->
-          defaults = Pearl.Settings.defaults()
-          current = Pearl.Settings.get(setting_key)
+          "" ->
+            :ok
 
-          if current == Map.get(defaults, setting_key) do
-            Pearl.Settings.put(setting_key, value)
-          end
+          value ->
+            try do
+              defaults = Pearl.Settings.defaults()
+              current = Pearl.Settings.get(setting_key)
+
+              if current == Map.get(defaults, setting_key) do
+                Pearl.Settings.put(setting_key, value)
+              end
+            rescue
+              _ -> :ok
+            catch
+              :exit, _ -> :ok
+            end
+        end
       end
-    end
+    end)
   end
 end
