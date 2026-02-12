@@ -98,13 +98,18 @@ defmodule Pearl.Rag do
   end
 
   defp process_batch(repo_id, batch, {acc, failed?}) do
-    case embed_and_store_batch(repo_id, batch) do
-      {:ok, n} ->
-        {acc + n, failed?}
+    if Pearl.Repositories.get_repo(repo_id) do
+      case embed_and_store_batch(repo_id, batch) do
+        {:ok, n} ->
+          {acc + n, failed?}
 
-      {:error, reason} ->
-        Logger.warning("Batch embedding failed: #{inspect(reason)}")
-        {acc, true}
+        {:error, reason} ->
+          Logger.warning("Batch embedding failed: #{inspect(reason)}")
+          {acc, true}
+      end
+    else
+      Logger.warning("Repo #{repo_id} no longer exists, stopping embedding")
+      {acc, true}
     end
   end
 
