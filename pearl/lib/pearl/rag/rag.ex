@@ -58,14 +58,16 @@ defmodule Pearl.Rag do
       # 2. Lazily chunk results (Stream.flat_map)
       # 3. Batch for embedding API (Stream.chunk_every)
       # 4. Reduce to count
-      {count, failed?} =
+      {count, _consecutive_failures, failed?} =
         files
         |> stream_file_chunks(repo, concurrency)
         |> Stream.chunk_every(batch_size)
-        |> Enum.reduce({0, false}, &process_batch(repo.id, &1, &2))
+        |> Enum.reduce_while({0, 0, false}, &process_batch(repo.id, &1, &2))
 
-      # Save the embedding model used for this repo
-      Repositories.update_repo(repo, %{embedding_model: Config.embedding_model()})
+      # Save the embedding model used for this repo (repo may have been deleted mid-index)
+      if Repositories.get_repo(repo.id) do
+        Repositories.update_repo(repo, %{embedding_model: Config.embedding_model()})
+      end
 
       if failed?, do: {:error, :embedding_failed}, else: {:ok, count}
     end
@@ -97,19 +99,31 @@ defmodule Pearl.Rag do
     end
   end
 
-  defp process_batch(repo_id, batch, {acc, failed?}) do
-    if Pearl.Repositories.get_repo(repo_id) do
+  @max_consecutive_failures 3
+
+  defp process_batch(repo_id, batch, {acc, consecutive_failures, failed?}) do
+    if !Pearl.Repositories.get_repo(repo_id) do
+      Logger.warning("Repo #{repo_id} no longer exists, stopping embedding")
+      {:halt, {acc, consecutive_failures, true}}
+    else
       case embed_and_store_batch(repo_id, batch) do
         {:ok, n} ->
-          {acc + n, failed?}
+          {:cont, {acc + n, 0, failed?}}
 
         {:error, reason} ->
+          new_failures = consecutive_failures + 1
           Logger.warning("Batch embedding failed: #{inspect(reason)}")
-          {acc, true}
+
+          if new_failures >= @max_consecutive_failures do
+            Logger.error(
+              "Aborting embedding after #{new_failures} consecutive failures (repo_id=#{repo_id})"
+            )
+
+            {:halt, {acc, new_failures, true}}
+          else
+            {:cont, {acc, new_failures, true}}
+          end
       end
-    else
-      Logger.warning("Repo #{repo_id} no longer exists, stopping embedding")
-      {acc, true}
     end
   end
 
