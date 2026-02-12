@@ -41,6 +41,11 @@ docker compose up
 export LLM_PROVIDER=ollama
 export OLLAMA_HOST=http://host.docker.internal:11434
 docker compose up
+
+# Claude Code (requires prior authentication)
+export LLM_PROVIDER=claude_code
+# Ensure ~/.claude/ exists from running `claude` CLI on host
+docker compose up
 ```
 
 ### Using a `.env` file
@@ -58,6 +63,7 @@ SECRET_KEY_BASE=generate-with-mix-phx-gen-secret
 
 - **Database**: Stored in `pearl_pgdata` Docker volume
 - **Cloned repos**: Stored in `pearl_repos` Docker volume
+- **Claude auth**: Mounted read-only from `~/.claude/` on host
 
 ## Prerequisites (Development Setup)
 
