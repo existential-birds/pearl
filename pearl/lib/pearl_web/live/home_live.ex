@@ -201,8 +201,6 @@ defmodule PearlWeb.HomeLive do
     """
   end
 
-  # Dialyzer has a limitation analyzing MFA tuples in Task.Supervisor.start_child
-  @dialyzer {:nowarn_function, handle_event: 3}
   @impl true
   def handle_event("generate", %{"repo_url" => url}, socket) do
     case Git.parse_url(url) do
@@ -229,7 +227,7 @@ defmodule PearlWeb.HomeLive do
             {:ok, metadata_pid} =
               Task.Supervisor.start_child(
                 Pearl.TaskSupervisor,
-                {__MODULE__, :fetch_metadata_task, [pid, repo_id, repo]},
+                fn -> fetch_metadata_task(pid, repo_id, repo) end,
                 link: true
               )
 
@@ -239,7 +237,7 @@ defmodule PearlWeb.HomeLive do
             generation_result =
               Task.Supervisor.start_child(
                 Pearl.TaskSupervisor,
-                {__MODULE__, :generate_wiki_task, [pid, repo_id, repo]},
+                fn -> generate_wiki_task(pid, repo_id, repo) end,
                 link: true
               )
 
