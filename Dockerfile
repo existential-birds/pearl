@@ -12,10 +12,10 @@
 # ---------------------------------------------------------------------------
 # Stage 1: Build – compile Elixir release and assets
 # ---------------------------------------------------------------------------
-ARG ELIXIR_VERSION=1.18.3
-ARG OTP_VERSION=27.3.3
+ARG ELIXIR_VERSION=1.19.5
+ARG OTP_VERSION=28.3.1
 ARG DEBIAN_CODENAME=bookworm
-ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_CODENAME}-20250428"
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_CODENAME}-20260202"
 ARG RUNNER_IMAGE="debian:${DEBIAN_CODENAME}-slim"
 
 FROM ${BUILDER_IMAGE} AS build
