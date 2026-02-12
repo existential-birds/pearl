@@ -29,7 +29,8 @@ defmodule Pearl.Wiki.Generator do
 
     with {:ok, structure} <- Repositories.get_structure(repo),
          _ <- broadcast_progress.("Analyzing repository structure..."),
-         {:ok, wiki_structure} <- generate_structure(structure, provider, model, cd: repo.local_path),
+         {:ok, wiki_structure} <-
+           generate_structure(structure, provider, model, cd: repo.local_path),
          _ <- broadcast_progress.("Generating #{length(wiki_structure["pages"])} pages..."),
          {:ok, pages} <-
            generate_pages(repo, structure, wiki_structure, provider, model, broadcast_progress) do
