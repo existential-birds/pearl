@@ -132,8 +132,18 @@ defmodule Pearl.Rag do
             }
           end)
 
-        {count, _} = Repo.insert_all(Embedding, entries)
-        {:ok, count}
+        try do
+          {count, _} = Repo.insert_all(Embedding, entries)
+          {:ok, count}
+        rescue
+          e in Postgrex.Error ->
+            if e.postgres[:code] == :foreign_key_violation do
+              Logger.warning("Repo #{repo_id} was deleted during embedding ingestion")
+              {:error, :repo_deleted}
+            else
+              reraise e, __STACKTRACE__
+            end
+        end
 
       {:error, reason} ->
         {:error, reason}
