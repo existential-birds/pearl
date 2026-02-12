@@ -20,10 +20,13 @@ defmodule Pearl.Application do
       PearlWeb.Endpoint
     ]
 
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
     opts = [strategy: :one_for_one, name: Pearl.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # Seed settings from environment variables (for Docker deployments)
+    seed_settings_from_env()
+
+    result
   end
 
   # Tell Phoenix to update the endpoint configuration
@@ -32,5 +35,35 @@ defmodule Pearl.Application do
   def config_change(changed, _new, removed) do
     PearlWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # Seeds Pearl.Settings from environment variables.
+  # Only writes if the env var is set AND the setting is still at its default.
+  # This allows Docker users to configure via env vars without overriding
+  # values that were previously set via the Settings UI.
+  defp seed_settings_from_env do
+    env_to_setting = [
+      {"LLM_PROVIDER", "chat_provider"},
+      {"LLM_MODEL", "chat_model"},
+      {"EMBEDDING_MODEL", "embedding_model"}
+    ]
+
+    for {env_var, setting_key} <- env_to_setting do
+      case System.get_env(env_var) do
+        nil ->
+          :ok
+
+        "" ->
+          :ok
+
+        value ->
+          defaults = Pearl.Settings.defaults()
+          current = Pearl.Settings.get(setting_key)
+
+          if current == Map.get(defaults, setting_key) do
+            Pearl.Settings.put(setting_key, value)
+          end
+      end
+    end
   end
 end
