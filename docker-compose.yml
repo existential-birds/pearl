@@ -14,5 +14,31 @@ services:
       timeout: 5s
       retries: 5
 
+  pearl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/existential-birds/pearl:latest
+    ports:
+      - "${PORT:-4000}:4000"
+    environment:
+      DATABASE_URL: "ecto://postgres:postgres@db:5432/pearl_prod"
+      SECRET_KEY_BASE: "${SECRET_KEY_BASE:-super-secret-key-base-that-is-at-least-64-bytes-long-for-production-use-please-change}"
+      PHX_HOST: "${PHX_HOST:-localhost}"
+      PHX_SCHEME: "${PHX_SCHEME:-http}"
+      PHX_SERVER: "true"
+      PORT: "4000"
+      LLM_PROVIDER: "${LLM_PROVIDER:-openrouter}"
+      LLM_MODEL: "${LLM_MODEL:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      OLLAMA_HOST: "${OLLAMA_HOST:-http://host.docker.internal:11434}"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - pearl_repos:/app/repos
+    restart: unless-stopped
+
 volumes:
   pearl_pgdata:
+  pearl_repos:
