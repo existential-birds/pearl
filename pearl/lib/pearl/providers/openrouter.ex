@@ -5,7 +5,11 @@ defmodule Pearl.Providers.OpenRouter do
 
   @behaviour Pearl.Providers.Provider
 
+  require Logger
+
   @base_url "https://openrouter.ai/api/v1"
+  @embed_max_retries 3
+  @embed_base_delay_ms 1_000
 
   @impl true
   def chat(model, messages, opts \\ []) do
@@ -135,26 +139,54 @@ defmodule Pearl.Providers.OpenRouter do
         {:error, :no_api_key}
 
       key ->
-        case Req.post("#{@base_url}/embeddings",
-               json: %{
-                 model: embedding_model(),
-                 input: texts
-               },
-               headers: headers(key)
-             ) do
-          {:ok, %{status: 200, body: %{"data" => data}}} ->
-            embeddings = Enum.map(data, & &1["embedding"])
-            {:ok, embeddings}
+        model = embedding_model()
+        do_embed(texts, model, key, 0)
+    end
+  end
 
-          {:ok, %{status: 401}} ->
-            {:error, :invalid_api_key}
+  defp do_embed(texts, model, key, attempt) do
+    case Req.post("#{@base_url}/embeddings",
+           json: %{model: model, input: texts},
+           headers: headers(key)
+         ) do
+      {:ok, %{status: 200, body: %{"data" => data}}} ->
+        {:ok, Enum.map(data, & &1["embedding"])}
 
-          {:ok, %{status: status, body: resp_body}} ->
-            {:error, {:http_error, status, resp_body}}
+      {:ok, %{status: 401}} ->
+        {:error, :invalid_api_key}
 
-          {:error, reason} ->
-            {:error, reason}
-        end
+      {:ok, %{status: 200, body: %{"error" => _} = resp_body}} ->
+        maybe_retry_embed(texts, model, key, attempt, {:http_error, 200, resp_body})
+
+      {:ok, %{status: status, body: resp_body}} when status in [429, 500, 502, 503, 504] ->
+        maybe_retry_embed(texts, model, key, attempt, {:http_error, status, resp_body})
+
+      {:ok, %{status: status, body: resp_body}} ->
+        {:error, {:http_error, status, resp_body}}
+
+      {:error, reason} ->
+        maybe_retry_embed(texts, model, key, attempt, reason)
+    end
+  end
+
+  defp maybe_retry_embed(texts, model, key, attempt, reason) do
+    if attempt < @embed_max_retries do
+      delay = @embed_base_delay_ms * Integer.pow(2, attempt)
+
+      Logger.warning(
+        "Embed attempt #{attempt + 1}/#{@embed_max_retries + 1} failed (model=#{model}, " <>
+          "texts=#{length(texts)}): #{inspect(reason)}. Retrying in #{delay}ms"
+      )
+
+      Process.sleep(delay)
+      do_embed(texts, model, key, attempt + 1)
+    else
+      Logger.error(
+        "Embed failed after #{@embed_max_retries + 1} attempts (model=#{model}, " <>
+          "texts=#{length(texts)}): #{inspect(reason)}"
+      )
+
+      {:error, reason}
     end
   end
 
