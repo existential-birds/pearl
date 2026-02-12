@@ -52,16 +52,16 @@ COPY pearl/config/runtime.exs config/
 COPY pearl/lib lib/
 COPY pearl/priv priv/
 
+# Compile the application first (generates phoenix-colocated hooks)
+RUN mix compile
+
 # Install npm deps for asset pipeline
 COPY pearl/assets/package.json pearl/assets/package-lock.json* assets/
 RUN cd assets && npm install --omit=dev
 
-# Copy remaining asset sources and compile them
+# Copy remaining asset sources and deploy compiled assets
 COPY pearl/assets assets/
 RUN mix assets.deploy
-
-# Compile the application
-RUN mix compile
 
 # Build the release
 RUN mix release
