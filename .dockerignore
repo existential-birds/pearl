@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+
+# Build artifacts (will be regenerated inside the container)
+pearl/_build
+pearl/deps
+pearl/doc
+pearl/cover
+
+# Node modules (will be installed inside the container)
+pearl/assets/node_modules
+
+# Test files (not needed in production image)
+pearl/test
+
+# IDE / Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker files (avoid recursive build context)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation and plans
+docs/
+*.md
+LICENSE
+CODEOWNERS
+
+# Logs
+logs/
+pearl/logs/
+
+# Tool config directories
+.beagle/
+.expert/
+.serena/
+.daydream/
+
+# CI
+.github
