@@ -16,3 +16,6 @@ logs/
 # Review artifacts
 .review-debug-*.log
 .review-output.md
+
+# Docker local overrides
+docker-compose.override.yml
