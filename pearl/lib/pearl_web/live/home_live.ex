@@ -455,6 +455,9 @@ defmodule PearlWeb.HomeLive do
   defp format_error(:unsupported_provider),
     do: "Only GitHub, GitLab, and Bitbucket URLs are supported"
 
+  defp format_error(:cli_not_found),
+    do: "Claude CLI not found. Install it or switch chat_provider to openrouter in settings."
+
   defp format_error(msg) when is_binary(msg), do: msg
   defp format_error(msg), do: "Error: #{inspect(msg)}"
 
