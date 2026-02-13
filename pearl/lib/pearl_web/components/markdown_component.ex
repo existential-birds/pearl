@@ -10,9 +10,10 @@ defmodule PearlWeb.MarkdownComponent do
 
   @spec render_markdown(String.t()) :: String.t()
   def render_markdown(markdown) when is_binary(markdown) do
-    markdown
-    |> Earmark.as_html!(code_class_prefix: "language-")
-    |> HtmlSanitizeEx.markdown_html()
+    case Earmark.as_html(markdown, code_class_prefix: "language-") do
+      {:ok, html, _warnings} -> HtmlSanitizeEx.markdown_html(html)
+      {:error, html, _errors} -> HtmlSanitizeEx.markdown_html(html)
+    end
   end
 
   def render_markdown(_), do: ""

@@ -16,9 +16,58 @@ _Named after [Pearl I. Young](https://en.wikipedia.org/wiki/Pearl_I._Young) (189
 2. **Generate a wiki** — An LLM analyzes the codebase and creates structured documentation
 3. **Ask questions** — Use the built-in chat to ask questions about the code; Pearl finds relevant code snippets and explains them
 
-## Prerequisites
+## Quick Start (Docker)
 
-Before setting up Pearl, you'll need to install:
+Run Pearl without installing Elixir, Hex, or Node.js:
+
+```bash
+git clone https://github.com/existential-birds/pearl.git
+cd pearl
+docker compose up
+```
+
+Pearl will be available at [http://localhost:4000](http://localhost:4000).
+
+### LLM Provider Configuration
+
+Set your LLM provider via environment variables or a `.env` file:
+
+```bash
+# OpenRouter (default)
+export OPENROUTER_API_KEY=sk-or-...
+docker compose up
+
+# Ollama (local)
+export LLM_PROVIDER=ollama
+export OLLAMA_HOST=http://host.docker.internal:11434
+docker compose up
+
+# Claude Code (requires prior authentication)
+export LLM_PROVIDER=claude_code
+# Ensure ~/.claude/ exists from running `claude` CLI on host
+docker compose up
+```
+
+### Using a `.env` file
+
+Create a `.env` file in the project root:
+
+```env
+OPENROUTER_API_KEY=sk-or-...
+LLM_PROVIDER=openrouter
+LLM_MODEL=openai/gpt-5.2
+SECRET_KEY_BASE=generate-with-mix-phx-gen-secret
+```
+
+### Data Persistence
+
+- **Database**: Stored in `pearl_pgdata` Docker volume
+- **Cloned repos**: Stored in `pearl_repos` Docker volume
+- **Claude auth**: Mounted read-only from `~/.claude/` on host
+
+## Prerequisites (Development Setup)
+
+To develop Pearl locally, you'll need to install:
 
 ### 1. Elixir and Erlang
 

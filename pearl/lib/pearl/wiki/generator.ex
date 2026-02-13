@@ -29,7 +29,8 @@ defmodule Pearl.Wiki.Generator do
 
     with {:ok, structure} <- Repositories.get_structure(repo),
          _ <- broadcast_progress.("Analyzing repository structure..."),
-         {:ok, wiki_structure} <- generate_structure(structure, provider, model, cd: repo.local_path),
+         {:ok, wiki_structure} <-
+           generate_structure(structure, provider, model, cd: repo.local_path),
          _ <- broadcast_progress.("Generating #{length(wiki_structure["pages"])} pages..."),
          {:ok, pages} <-
            generate_pages(repo, structure, wiki_structure, provider, model, broadcast_progress) do
@@ -57,9 +58,32 @@ defmodule Pearl.Wiki.Generator do
       |> String.trim()
 
     case Jason.decode(json) do
-      {:ok, %{"pages" => _} = parsed} -> {:ok, parsed}
-      {:ok, _} -> {:error, :invalid_structure}
-      {:error, reason} -> {:error, {:json_parse_error, reason}}
+      {:ok, %{"pages" => _} = parsed} ->
+        {:ok, parsed}
+
+      {:ok, _} ->
+        {:error, :invalid_structure}
+
+      {:error, _} ->
+        # Fallback: extract JSON object from text with LLM preamble
+        case extract_json_object(json) do
+          nil ->
+            {:error, {:json_parse_error, :no_json_found}}
+
+          extracted ->
+            case Jason.decode(extracted) do
+              {:ok, %{"pages" => _} = parsed} -> {:ok, parsed}
+              {:ok, _} -> {:error, :invalid_structure}
+              {:error, reason} -> {:error, {:json_parse_error, reason}}
+            end
+        end
+    end
+  end
+
+  defp extract_json_object(text) do
+    case Regex.run(~r/\{.+\}/s, text) do
+      [match] -> match
+      _ -> nil
     end
   end
 
