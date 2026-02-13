@@ -32,6 +32,8 @@ services:
       LLM_MODEL: "${LLM_MODEL:-}"
       OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
       OLLAMA_HOST: "${OLLAMA_HOST:-http://host.docker.internal:11434}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+    init: true
     depends_on:
       db:
         condition: service_healthy

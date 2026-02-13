@@ -9,9 +9,23 @@ defmodule PearlWeb.HomeLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    # Trap exits to handle linked task crashes gracefully
-    Process.flag(:trap_exit, true)
     repos = Repositories.list_repos()
+
+    in_progress_statuses = ~w(pending cloning analyzing generating)
+    in_progress_repos = Enum.filter(repos, &(&1.status in in_progress_statuses))
+
+    if connected?(socket) do
+      for repo <- in_progress_repos do
+        Phoenix.PubSub.subscribe(Pearl.PubSub, "repo:progress:#{repo.id}")
+      end
+    end
+
+    progress_by_repo =
+      for repo <- in_progress_repos, into: %{} do
+        {repo.id, default_progress_message(repo.status)}
+      end
+
+    generating = in_progress_repos != []
 
     {:ok,
      assign(socket,
@@ -21,11 +35,10 @@ defmodule PearlWeb.HomeLive do
        show_ask: false,
        repos: repos,
        repo_url: "",
-       generating: false,
-       progress_by_repo: %{},
+       generating: generating,
+       progress_by_repo: progress_by_repo,
        error: nil,
-       confirm_delete_id: nil,
-       linked_tasks: MapSet.new()
+       confirm_delete_id: nil
      )}
   end
 
@@ -219,35 +232,24 @@ defmodule PearlWeb.HomeLive do
                 repo_url: ""
               )
 
-            pid = self()
             repo_id = repo.id
+            Phoenix.PubSub.subscribe(Pearl.PubSub, "repo:progress:#{repo_id}")
 
-            # Fetch metadata in parallel (for instant card display with full info)
-            # Linked to LiveView - terminates if user navigates away
-            {:ok, metadata_pid} =
-              Task.Supervisor.start_child(
-                Pearl.TaskSupervisor,
-                fn -> fetch_metadata_task(pid, repo_id, repo) end,
-                link: true
-              )
+            # Fetch metadata in parallel (runs independently of LiveView)
+            Task.Supervisor.start_child(
+              Pearl.TaskSupervisor,
+              fn -> fetch_metadata_task(repo_id, repo) end
+            )
 
-            # Main generation task
-            # Linked to LiveView - terminates if user navigates away
-            # If this fails to start, kill the metadata task to avoid orphans
-            generation_result =
-              Task.Supervisor.start_child(
-                Pearl.TaskSupervisor,
-                fn -> generate_wiki_task(pid, repo_id, repo) end,
-                link: true
-              )
-
-            case generation_result do
-              {:ok, generation_pid} ->
-                socket = assign(socket, linked_tasks: MapSet.new([metadata_pid, generation_pid]))
+            # Main generation task (runs independently of LiveView)
+            case Task.Supervisor.start_child(
+                   Pearl.TaskSupervisor,
+                   fn -> generate_wiki_task(repo_id, repo) end
+                 ) do
+              {:ok, _pid} ->
                 {:noreply, socket}
 
               {:error, reason} ->
-                Process.exit(metadata_pid, :shutdown)
                 {:noreply, assign(socket, generating: false, error: format_error(reason))}
             end
 
@@ -351,51 +353,31 @@ defmodule PearlWeb.HomeLive do
      )}
   end
 
-  @impl true
-  def handle_info({:EXIT, pid, :normal}, socket) do
-    {:noreply, assign(socket, linked_tasks: MapSet.delete(socket.assigns.linked_tasks, pid))}
-  end
-
-  @impl true
-  def handle_info({:EXIT, pid, :shutdown}, socket) do
-    {:noreply, assign(socket, linked_tasks: MapSet.delete(socket.assigns.linked_tasks, pid))}
-  end
-
-  @impl true
-  def handle_info({:EXIT, pid, {:shutdown, _}}, socket) do
-    {:noreply, assign(socket, linked_tasks: MapSet.delete(socket.assigns.linked_tasks, pid))}
-  end
-
-  @impl true
-  def handle_info({:EXIT, crashed_pid, reason}, socket) do
-    # A linked task crashed - terminate sibling tasks and clear generating state
-    socket.assigns.linked_tasks
-    |> MapSet.delete(crashed_pid)
-    |> Enum.each(&Process.exit(&1, :shutdown))
-
-    {:noreply,
-     assign(socket,
-       generating: false,
-       progress_by_repo: %{},
-       linked_tasks: MapSet.new(),
-       error: "Task failed unexpectedly: #{inspect(reason)}"
-     )}
-  end
-
   @doc false
   # Task entry point for Task.Supervisor.start_child - fetches repo metadata
-  def fetch_metadata_task(pid, repo_id, repo) do
+  def fetch_metadata_task(repo_id, repo) do
+    topic = "repo:progress:#{repo_id}"
+
     case Repositories.fetch_and_save_metadata(repo) do
-      {:ok, updated_repo} -> send(pid, {:metadata_updated, repo_id, updated_repo})
-      _ -> :ok
+      {:ok, updated_repo} ->
+        Phoenix.PubSub.broadcast(Pearl.PubSub, topic, {:metadata_updated, repo_id, updated_repo})
+
+      _ ->
+        :ok
     end
   end
 
   @doc false
   # Task entry point for Task.Supervisor.start_child - generates wiki
-  def generate_wiki_task(pid, repo_id, repo) do
-    result = do_generate(repo, fn msg -> send(pid, {:progress, repo_id, msg}) end)
-    send(pid, {:generation_complete, repo_id, result})
+  def generate_wiki_task(repo_id, repo) do
+    topic = "repo:progress:#{repo_id}"
+
+    result =
+      do_generate(repo, fn msg ->
+        Phoenix.PubSub.broadcast(Pearl.PubSub, topic, {:progress, repo_id, msg})
+      end)
+
+    Phoenix.PubSub.broadcast(Pearl.PubSub, topic, {:generation_complete, repo_id, result})
   end
 
   defp do_generate(%Pearl.Repositories.RepoRecord{id: repo_id} = repo, on_progress) do
@@ -460,6 +442,12 @@ defmodule PearlWeb.HomeLive do
 
   defp format_error(msg) when is_binary(msg), do: msg
   defp format_error(msg), do: "Error: #{inspect(msg)}"
+
+  defp default_progress_message("pending"), do: "Starting..."
+  defp default_progress_message("cloning"), do: "Cloning repository..."
+  defp default_progress_message("analyzing"), do: "Analyzing repository..."
+  defp default_progress_message("generating"), do: "Generating wiki..."
+  defp default_progress_message(_), do: "Processing..."
 
   defp status_badge("ready"), do: "badge-success"
   defp status_badge("pending"), do: "badge-warning"

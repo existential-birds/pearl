@@ -24,6 +24,26 @@ defmodule Pearl.Repositories do
     Repo.get_by(RepoRecord, url: url)
   end
 
+  @doc """
+  Resets any repos stuck in an in-progress status to "failed".
+  Called on application startup to recover from interrupted generations.
+  """
+  @spec reset_orphaned_repos() :: {non_neg_integer(), nil}
+  def reset_orphaned_repos do
+    in_progress = ~w(pending cloning analyzing generating)
+
+    {count, _} =
+      RepoRecord
+      |> where([r], r.status in ^in_progress)
+      |> Repo.update_all(set: [status: "failed", updated_at: DateTime.utc_now()])
+
+    if count > 0 do
+      Logger.info("Reset #{count} orphaned repo(s) to failed status on startup")
+    end
+
+    {count, nil}
+  end
+
   @spec list_repos() :: [RepoRecord.t()]
   def list_repos do
     RepoRecord

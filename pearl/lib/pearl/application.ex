@@ -23,6 +23,15 @@ defmodule Pearl.Application do
     opts = [strategy: :one_for_one, name: Pearl.Supervisor]
     result = Supervisor.start_link(children, opts)
 
+    # Reset repos stuck in progress from a previous crash/restart
+    try do
+      Pearl.Repositories.reset_orphaned_repos()
+    rescue
+      _ -> :ok
+    catch
+      :exit, _ -> :ok
+    end
+
     # Seed settings from environment variables (for Docker deployments)
     seed_settings_from_env()
 

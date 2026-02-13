@@ -148,31 +148,48 @@ defmodule Pearl.Providers.ClaudeCode do
 
   defp chat_sync(cli_path, args, cd) do
     port = open_cli_port(cli_path, args, cd)
-    collect_sync(port, [])
+    ref = Port.monitor(port)
+    result = collect_sync(port, ref, [])
+    Port.demonitor(ref, [:flush])
+    result
   end
 
-  defp collect_sync(port, texts) do
+  defp collect_sync(port, ref, texts) do
     receive do
       {^port, {:data, {:eol, line}}} ->
         case parse_json_line(line) do
-          {:text, text} -> collect_sync(port, [text | texts])
+          {:text, text} -> collect_sync(port, ref, [text | texts])
           {:done, _result} -> finish_port(port, texts)
-          :skip -> collect_sync(port, texts)
+          :skip -> collect_sync(port, ref, texts)
         end
 
       {^port, {:data, {:noeol, _partial}}} ->
         # Line too long, skip partial data
-        collect_sync(port, texts)
+        collect_sync(port, ref, texts)
 
       {^port, {:exit_status, 0}} ->
         {:ok, texts |> Enum.reverse() |> Enum.join()}
 
       {^port, {:exit_status, code}} ->
         {:error, {:cli_error, code}}
+
+      {:DOWN, ^ref, :port, ^port, _reason} ->
+        # Port died without sending exit_status (e.g. zombie not reaped)
+        if texts == [],
+          do: {:error, {:cli_error, :port_closed}},
+          else: {:ok, texts |> Enum.reverse() |> Enum.join()}
     after
       600_000 ->
-        Port.close(port)
+        safe_close(port)
         {:error, :timeout}
+    end
+  end
+
+  defp safe_close(port) do
+    try do
+      Port.close(port)
+    rescue
+      ArgumentError -> :ok
     end
   end
 
@@ -183,7 +200,7 @@ defmodule Pearl.Providers.ClaudeCode do
       {^port, _} -> finish_port(port, texts)
     after
       10_000 ->
-        Port.close(port)
+        safe_close(port)
         {:ok, texts |> Enum.reverse() |> Enum.join()}
     end
   end
@@ -220,14 +237,7 @@ defmodule Pearl.Providers.ClaudeCode do
     end
   end
 
-  defp close_port(port) do
-    # Drain and close; port may already be closed from exit_status
-    try do
-      Port.close(port)
-    rescue
-      ArgumentError -> :ok
-    end
-  end
+  defp close_port(port), do: safe_close(port)
 
   @impl true
   def embed(_texts) do
