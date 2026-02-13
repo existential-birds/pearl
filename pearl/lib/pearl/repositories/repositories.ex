@@ -35,7 +35,7 @@ defmodule Pearl.Repositories do
     {count, _} =
       RepoRecord
       |> where([r], r.status in ^in_progress)
-      |> Repo.update_all(set: [status: "failed", updated_at: DateTime.utc_now()])
+      |> Repo.update_all(set: [status: "failed", updated_at: NaiveDateTime.utc_now()])
 
     if count > 0 do
       Logger.info("Reset #{count} orphaned repo(s) to failed status on startup")
