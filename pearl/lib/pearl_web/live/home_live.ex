@@ -373,9 +373,15 @@ defmodule PearlWeb.HomeLive do
     topic = "repo:progress:#{repo_id}"
 
     result =
-      do_generate(repo, fn msg ->
-        Phoenix.PubSub.broadcast(Pearl.PubSub, topic, {:progress, repo_id, msg})
-      end)
+      try do
+        do_generate(repo, fn msg ->
+          Phoenix.PubSub.broadcast(Pearl.PubSub, topic, {:progress, repo_id, msg})
+        end)
+      rescue
+        exception -> {:error, {:generation_crashed, Exception.message(exception)}}
+      catch
+        kind, reason -> {:error, {:generation_crashed, {kind, reason}}}
+      end
 
     Phoenix.PubSub.broadcast(Pearl.PubSub, topic, {:generation_complete, repo_id, result})
   end

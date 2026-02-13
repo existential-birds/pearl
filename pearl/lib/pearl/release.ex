@@ -18,7 +18,7 @@ defmodule Pearl.Release do
   """
   @spec create_db() :: :ok
   def create_db do
-    load_app()
+    Application.load(@app)
 
     for repo <- repos() do
       case repo.__adapter__().storage_up(repo.config()) do
