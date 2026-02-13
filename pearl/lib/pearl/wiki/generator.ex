@@ -58,9 +58,32 @@ defmodule Pearl.Wiki.Generator do
       |> String.trim()
 
     case Jason.decode(json) do
-      {:ok, %{"pages" => _} = parsed} -> {:ok, parsed}
-      {:ok, _} -> {:error, :invalid_structure}
-      {:error, reason} -> {:error, {:json_parse_error, reason}}
+      {:ok, %{"pages" => _} = parsed} ->
+        {:ok, parsed}
+
+      {:ok, _} ->
+        {:error, :invalid_structure}
+
+      {:error, _} ->
+        # Fallback: extract JSON object from text with LLM preamble
+        case extract_json_object(json) do
+          nil ->
+            {:error, {:json_parse_error, :no_json_found}}
+
+          extracted ->
+            case Jason.decode(extracted) do
+              {:ok, %{"pages" => _} = parsed} -> {:ok, parsed}
+              {:ok, _} -> {:error, :invalid_structure}
+              {:error, reason} -> {:error, {:json_parse_error, reason}}
+            end
+        end
+    end
+  end
+
+  defp extract_json_object(text) do
+    case Regex.run(~r/\{.+\}/s, text) do
+      [match] -> match
+      _ -> nil
     end
   end
 

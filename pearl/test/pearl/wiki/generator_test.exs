@@ -20,8 +20,28 @@ defmodule Pearl.Wiki.GeneratorTest do
       assert {:ok, %{"pages" => _}} = Generator.parse_structure_response(response)
     end
 
+    test "extracts JSON when LLM adds preamble text" do
+      response =
+        ~s(I'll analyze this repository structure to create a wiki.\n{"pages": [{"id": "overview", "title": "Overview"}]})
+
+      assert {:ok, %{"pages" => pages}} = Generator.parse_structure_response(response)
+      assert length(pages) == 1
+    end
+
+    test "extracts JSON when LLM adds preamble and trailing text" do
+      response =
+        ~s(Here is the structure:\n{"pages": [{"id": "overview", "title": "Overview"}]}\nLet me know if you need changes.)
+
+      assert {:ok, %{"pages" => _}} = Generator.parse_structure_response(response)
+    end
+
     test "returns error for invalid JSON" do
       response = "not json"
+      assert {:error, _} = Generator.parse_structure_response(response)
+    end
+
+    test "returns error when no JSON object found in text" do
+      response = "I'll analyze this repository but here are no braces"
       assert {:error, _} = Generator.parse_structure_response(response)
     end
   end
