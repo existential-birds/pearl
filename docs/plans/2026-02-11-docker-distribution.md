@@ -27,20 +27,20 @@ LLM provider configuration via `.env` file or environment variables in `docker-c
 
 Multi-stage build with three logical stages:
 
-**Stage 1 — Build** (base: `hexpm/elixir:1.15.7-erlang-26.2.5-debian-bookworm`):
+**Stage 1 — Build** (base: `hexpm/elixir:1.19.5-erlang-28.3.1-debian-bookworm`):
 
 1. Install Hex and Rebar: `mix local.hex --force && mix local.rebar --force`
 2. Set `MIX_ENV=prod`
 3. Copy `mix.exs`, `mix.lock` → `mix deps.get --only prod` → `mix deps.compile`
 4. Copy `config/`, `lib/`, `priv/` → `mix compile`
-5. Install Node.js 24 for asset pipeline
+5. Install Node.js 22 LTS for asset pipeline
 6. Copy `assets/` → `mix assets.deploy`
 7. `mix release`
 
 **Stage 2 — Runtime** (base: `debian:bookworm-slim`):
 
 1. Install runtime dependencies: `libstdc++6`, `openssl`, `libncurses5`, `locales`
-2. Install Node.js 24+ (required for Claude CLI)
+2. Install Node.js 22 LTS (required for Claude CLI)
 3. `npm install -g @anthropic-ai/claude-code@latest`
 4. Copy release from build stage
 5. Copy `docker-entrypoint.sh`
@@ -165,7 +165,7 @@ Builds and pushes the Docker image to GHCR on every push to `main` and on versio
 
 | File | Action | Description |
 |------|--------|-------------|
-| `pearl/Dockerfile` | New | Multi-stage build with Node.js 24 + Claude CLI |
+| `pearl/Dockerfile` | New | Multi-stage build with Node.js 22 LTS + Claude CLI |
 | `pearl/docker-entrypoint.sh` | New | Migrate + start script |
 | `pearl/lib/pearl/release.ex` | New | Ecto migration helper for releases |
 | `docker-compose.yml` | Modify | Add `pearl` service referencing GHCR image |
